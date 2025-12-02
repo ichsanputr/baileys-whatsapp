@@ -591,6 +591,18 @@ function sendDashboard(res, qrImageUrl) {
           body: JSON.stringify({ deleteAuth })
         });
         
+        // Check if response is OK and is JSON
+        if (!response.ok) {
+          const errorText = await response.text();
+          throw new Error('Server error: ' + response.status + ' - ' + errorText.substring(0, 100));
+        }
+        
+        const contentType = response.headers.get('content-type');
+        if (!contentType || !contentType.includes('application/json')) {
+          const text = await response.text();
+          throw new Error('Expected JSON but got: ' + text.substring(0, 100));
+        }
+        
         const result = await response.json();
         showAlert(result.message, result.status === 'success' ? 'success' : 'error');
         
@@ -598,6 +610,7 @@ function sendDashboard(res, qrImageUrl) {
           location.reload();
         }, 2000);
       } catch (error) {
+        console.error('Disconnect error:', error);
         showAlert('❌ Error: ' + error.message, 'error');
       }
     }
@@ -902,12 +915,16 @@ app.get('/api/status', (req, res) => {
 // Disconnect/Logout endpoint
 app.post('/api/disconnect', async (req, res) => {
   try {
-    const { deleteAuth = false } = req.body; // Option to delete auth files
+    // Ensure we always return JSON
+    res.setHeader('Content-Type', 'application/json');
+    
+    const { deleteAuth = false } = req.body || {}; // Option to delete auth files
 
     if (!sock) {
       return res.json({
         status: 'success',
-        message: 'Already disconnected. No active connection.'
+        message: 'Already disconnected. No active connection.',
+        deletedAuth: false
       });
     }
 
@@ -915,15 +932,22 @@ app.post('/api/disconnect', async (req, res) => {
     
     // Logout from WhatsApp
     try {
-      await sock.logout();
-      console.log('Logged out from WhatsApp');
+      if (sock && typeof sock.logout === 'function') {
+        await sock.logout();
+        console.log('Logged out from WhatsApp');
+      }
     } catch (error) {
-      console.log('Error during logout:', error.message);
+      console.log('Error during logout (non-fatal):', error.message);
+      // Continue with disconnection even if logout fails
     }
 
     // Close the socket
-    if (sock.end) {
-      sock.end();
+    try {
+      if (sock && typeof sock.end === 'function') {
+        sock.end();
+      }
+    } catch (error) {
+      console.log('Error closing socket (non-fatal):', error.message);
     }
     
     sock = null;
@@ -940,6 +964,7 @@ app.post('/api/disconnect', async (req, res) => {
         }
       } catch (error) {
         console.error('Error deleting auth files:', error);
+        // Don't fail the request if auth deletion fails
       }
     }
 
@@ -962,9 +987,28 @@ app.post('/api/disconnect', async (req, res) => {
     console.error('Error disconnecting:', error);
     res.status(500).json({
       status: 'error',
-      message: error.message
+      message: error.message || 'Unknown error occurred',
+      deletedAuth: false
     });
   }
+});
+
+// 404 handler - must be after all routes
+app.use((req, res) => {
+  res.status(404).json({
+    status: 'error',
+    message: 'Endpoint not found',
+    path: req.path
+  });
+});
+
+// Error handler middleware
+app.use((err, req, res, next) => {
+  console.error('Unhandled error:', err);
+  res.status(err.status || 500).json({
+    status: 'error',
+    message: err.message || 'Internal server error'
+  });
 });
 
 // Start server
