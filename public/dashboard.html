@@ -468,6 +468,36 @@
     // Global variables
     let selectedFile = null;
     
+    // Auto-detect base path from current URL
+    // If deployed at /whatsapp/ or /whatsapp, this will be '/whatsapp'
+    // If deployed at root, this will be ''
+    function getBasePath() {
+      let path = window.location.pathname;
+      // Remove trailing slash if present
+      if (path.endsWith('/')) {
+        path = path.slice(0, -1);
+      }
+      // Remove filename if present (e.g., index.html, dashboard.html)
+      path = path.replace(/\/[^\/]*\.(html|htm)$/, '');
+      // If path is empty or just '/', return empty string
+      return path && path !== '/' ? path : '';
+    }
+    
+    const BASE_PATH = getBasePath();
+    
+    // Debug: log base path (can be removed in production)
+    if (BASE_PATH) {
+      console.log('Detected base path:', BASE_PATH);
+    }
+    
+    // Helper function to build API URLs
+    function apiUrl(endpoint) {
+      // Remove leading slash from endpoint if present
+      const cleanEndpoint = endpoint.startsWith('/') ? endpoint.slice(1) : endpoint;
+      const url = BASE_PATH + '/' + cleanEndpoint;
+      return url;
+    }
+    
     // Utility functions
     function showAlert(message, type) {
       const alertDiv = document.getElementById('alert');
@@ -520,7 +550,7 @@
       
       try {
         showAlert('Sending message...', 'success');
-        const response = await fetch('/send-message', {
+        const response = await fetch(apiUrl('send-message'), {
           method: 'POST',
           body: formData
         });
@@ -545,7 +575,7 @@
       try {
         showAlert('Initiating connection...', 'success');
         
-        const response = await fetch('/connect', {
+        const response = await fetch(apiUrl('connect'), {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' }
         });
@@ -574,7 +604,7 @@
       try {
         showAlert('Clearing auth files...', 'success');
         
-        const response = await fetch('/clear-auth', {
+        const response = await fetch(apiUrl('clear-auth'), {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' }
         });
@@ -603,7 +633,7 @@
       }
       
       try {
-        const response = await fetch('/disconnect', {
+        const response = await fetch(apiUrl('disconnect'), {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({ deleteAuth })
@@ -635,7 +665,7 @@
       }
       
       try {
-        const statusResponse = await fetch('/status');
+        const statusResponse = await fetch(apiUrl('status'));
         const statusData = await statusResponse.json();
         
         if (!statusData.isReady) {
@@ -650,7 +680,7 @@
       try {
         container.innerHTML = '<p style="text-align: center; color: #666; padding: 20px;">Loading groups...</p>';
         
-        const response = await fetch('/groups');
+        const response = await fetch(apiUrl('groups'));
         const result = await response.json();
         
         if (result.status === 'success' && result.groups && result.groups.length > 0) {
@@ -695,7 +725,7 @@
     // Load status and update UI
     async function loadStatus() {
       try {
-        const response = await fetch('/status');
+        const response = await fetch(apiUrl('status'));
         const data = await response.json();
         
         const statusIndicator = document.getElementById('statusIndicator');
@@ -744,7 +774,7 @@
     // Load QR code
     async function loadQRCode() {
       try {
-        const response = await fetch('/qr');
+        const response = await fetch(apiUrl('qr'));
         const data = await response.json();
         
         if (data.status === 'success' && data.qr) {
@@ -758,7 +788,7 @@
               document.getElementById('qrImage').src = canvas.toDataURL();
             } catch (err) {
               console.error('Error generating QR canvas:', err);
-              document.getElementById('qrImage').src = '/qr/display?' + Date.now();
+              document.getElementById('qrImage').src = apiUrl('qr/display') + '?' + Date.now();
             }
           };
           script.onerror = () => {

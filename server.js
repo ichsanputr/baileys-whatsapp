@@ -14,7 +14,7 @@ const fs = require("fs");
 const pino = require("pino");
 
 const app = express();
-const PORT = 5000;
+const PORT = process.env.PORT || 5000;
 
 // Middleware - CORS restricted to namia.online (allows localhost for development)
 const corsOptions = {
