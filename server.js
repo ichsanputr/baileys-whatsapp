@@ -22,6 +22,7 @@ const corsOptions = {
     // Allow requests from namia.online and its subdomains
     const allowedOrigins = [
       "https://namia.online",
+      "https://kurir.namia.online",
       "http://namia.online",
       "https://www.namia.online",
       "http://www.namia.online",
