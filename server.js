@@ -711,18 +711,26 @@ function sendDashboard(res, qrImageUrl) {
     }, 10000);
     ` : ''}
     
-    // Load groups on page load if connected
-    ${isReady ? `
-    window.addEventListener('load', () => {
-      loadGroups();
-    });
-    ` : ''}
-    
+    // Load groups function - must be in global scope for onclick handler
     async function loadGroups() {
       const container = document.getElementById('groupsContainer');
       
-      if (!${isReady}) {
-        container.innerHTML = '<p style="text-align: center; color: #666; padding: 20px;">Connect WhatsApp first to see groups</p>';
+      if (!container) {
+        console.error('Groups container not found');
+        return;
+      }
+      
+      // Check if WhatsApp is ready
+      try {
+        const statusResponse = await fetch('/api/status');
+        const statusData = await statusResponse.json();
+        
+        if (!statusData.isReady) {
+          container.innerHTML = '<p style="text-align: center; color: #666; padding: 20px;">Connect WhatsApp first to see groups</p>';
+          return;
+        }
+      } catch (error) {
+        container.innerHTML = '<p style="text-align: center; color: #ff4444; padding: 20px;">Error checking status: ' + escapeHtml(error.message) + '</p>';
         return;
       }
       
@@ -745,7 +753,7 @@ function sendDashboard(res, qrImageUrl) {
             html += '<td><span class="group-id">' + escapeHtml(group.id) + '</span></td>';
             html += '<td>' + group.participants + ' members</td>';
             html += '<td>' + createdDate + '</td>';
-            html += '<td><button class="copy-btn" onclick="copyGroupId(\'' + escapeHtml(group.id) + '\')">📋 Copy ID</button></td>';
+            html += '<td><button class="copy-btn" onclick="copyGroupId(\'' + escapeHtml(group.id).replace(/'/g, "\\'") + '\')">📋 Copy ID</button></td>';
             html += '</tr>';
           });
           
@@ -776,6 +784,13 @@ function sendDashboard(res, qrImageUrl) {
       div.textContent = text;
       return div.innerHTML;
     }
+    
+    // Load groups on page load if connected
+    ${isReady ? `
+    window.addEventListener('load', () => {
+      loadGroups();
+    });
+    ` : ''}
   </script>
 </body>
 </html>
