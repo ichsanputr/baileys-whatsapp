@@ -396,12 +396,36 @@
       </div>
       
       <div class="card">
-        <h2>Send Message</h2>
+        <h2>💬 Send Message</h2>
         <div id="alert" class="alert"></div>
         <form id="messageForm" onsubmit="sendMessage(event)">
           <div class="form-group">
+            <label>Send To</label>
+            <div style="display: flex; gap: 15px; margin-bottom: 10px;">
+              <label style="display: flex; align-items: center; cursor: pointer;">
+                <input type="radio" name="sendTo" value="phone" checked onchange="toggleSendTo()" style="margin-right: 5px;">
+                Phone Number
+              </label>
+              <label style="display: flex; align-items: center; cursor: pointer;">
+                <input type="radio" name="sendTo" value="group" onchange="toggleSendTo()" style="margin-right: 5px;">
+                Group
+              </label>
+            </div>
+          </div>
+          
+          <div class="form-group" id="phoneGroup">
             <label for="number">Phone Number</label>
-            <input type="text" id="number" placeholder="628999812190" required>
+            <input type="text" id="number" placeholder="628999812190">
+          </div>
+          
+          <div class="form-group" id="groupGroup" style="display: none;">
+            <label for="groupSelect">Select Group</label>
+            <select id="groupSelect" style="width: 100%; padding: 10px; border: 1px solid #ced4da; border-radius: 4px; font-size: 14px; font-family: inherit;">
+              <option value="">Loading groups...</option>
+            </select>
+            <small style="color: #666; font-size: 12px; margin-top: 5px; display: block;">
+              Groups are loaded from your WhatsApp account. Make sure WhatsApp is connected.
+            </small>
           </div>
           
           <div class="form-group">
@@ -467,6 +491,7 @@
   <script>
     // Global variables
     let selectedFile = null;
+    let groupsList = [];
     
     // Auto-detect base path from current URL
     // If deployed at /whatsapp/ or /whatsapp, this will be '/whatsapp'
@@ -529,20 +554,93 @@
       }
     }
     
+    // Toggle between phone and group input
+    function toggleSendTo() {
+      const sendTo = document.querySelector('input[name="sendTo"]:checked').value;
+      const phoneGroup = document.getElementById('phoneGroup');
+      const groupGroup = document.getElementById('groupGroup');
+      const numberInput = document.getElementById('number');
+      const groupSelect = document.getElementById('groupSelect');
+      
+      if (sendTo === 'phone') {
+        phoneGroup.style.display = 'block';
+        groupGroup.style.display = 'none';
+        numberInput.required = true;
+        groupSelect.required = false;
+      } else {
+        phoneGroup.style.display = 'none';
+        groupGroup.style.display = 'block';
+        numberInput.required = false;
+        groupSelect.required = true;
+        // Load groups if not already loaded
+        if (groupsList.length === 0) {
+          loadGroupsForSelect();
+        }
+      }
+    }
+    
+    // Load groups for dropdown select
+    async function loadGroupsForSelect() {
+      const groupSelect = document.getElementById('groupSelect');
+      try {
+        const statusResponse = await fetch(apiUrl('status'));
+        const statusData = await statusResponse.json();
+        
+        if (!statusData.isReady) {
+          groupSelect.innerHTML = '<option value="">Connect WhatsApp first</option>';
+          return;
+        }
+        
+        const response = await fetch(apiUrl('groups'));
+        const result = await response.json();
+        
+        if (result.status === 'success' && result.groups && result.groups.length > 0) {
+          groupsList = result.groups;
+          groupSelect.innerHTML = '<option value="">Select a group...</option>';
+          result.groups.forEach(group => {
+            const option = document.createElement('option');
+            option.value = group.id;
+            option.textContent = group.subject + ' (' + group.participants + ' members)';
+            groupSelect.appendChild(option);
+          });
+        } else {
+          groupSelect.innerHTML = '<option value="">No groups found</option>';
+        }
+      } catch (error) {
+        console.error('Error loading groups:', error);
+        groupSelect.innerHTML = '<option value="">Error loading groups</option>';
+      }
+    }
+    
     // Message sending
     async function sendMessage(event) {
       event.preventDefault();
       
-      const number = document.getElementById('number').value;
+      const sendTo = document.querySelector('input[name="sendTo"]:checked').value;
       const message = document.getElementById('message').value;
       
-      if (!number || !message) {
-        showAlert('Please fill in all required fields', 'error');
+      if (!message) {
+        showAlert('Please enter a message', 'error');
         return;
       }
       
+      let target;
+      if (sendTo === 'phone') {
+        target = document.getElementById('number').value;
+        if (!target) {
+          showAlert('Please enter a phone number', 'error');
+          return;
+        }
+      } else {
+        target = document.getElementById('groupSelect').value;
+        if (!target) {
+          showAlert('Please select a group', 'error');
+          return;
+        }
+      }
+      
       const formData = new FormData();
-      formData.append('number', number);
+      formData.append('number', target);
       formData.append('message', message);
       if (selectedFile) {
         formData.append('image', selectedFile);
@@ -765,6 +863,7 @@
         // Load groups if connected
         if (data.isReady) {
           loadGroups();
+          loadGroupsForSelect(); // Also load for dropdown
         }
       } catch (error) {
         console.error('Error loading status:', error);
