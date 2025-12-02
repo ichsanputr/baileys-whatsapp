@@ -431,6 +431,64 @@ function sendDashboard(res, qrImageUrl) {
       color: #666;
       font-size: 14px;
     }
+    
+    .groups-table {
+      width: 100%;
+      border-collapse: collapse;
+      margin-top: 15px;
+    }
+    
+    .groups-table th,
+    .groups-table td {
+      padding: 12px;
+      text-align: left;
+      border-bottom: 1px solid #e0e0e0;
+    }
+    
+    .groups-table th {
+      background: #f8f9fa;
+      font-weight: 600;
+      color: #333;
+      position: sticky;
+      top: 0;
+    }
+    
+    .groups-table tr:hover {
+      background: #f8f9fa;
+    }
+    
+    .group-id {
+      font-family: monospace;
+      font-size: 12px;
+      color: #667eea;
+      word-break: break-all;
+      max-width: 300px;
+    }
+    
+    .group-subject {
+      font-weight: 600;
+      color: #333;
+    }
+    
+    .copy-btn {
+      background: #667eea;
+      color: white;
+      border: none;
+      padding: 4px 8px;
+      border-radius: 4px;
+      cursor: pointer;
+      font-size: 11px;
+      margin-left: 5px;
+    }
+    
+    .copy-btn:hover {
+      background: #5568d3;
+    }
+    
+    .groups-container {
+      max-height: 500px;
+      overflow-y: auto;
+    }
   </style>
 </head>
 <body>
@@ -521,6 +579,18 @@ function sendDashboard(res, qrImageUrl) {
             <span>GET /api/status</span>
           </div>
         </div>
+      </div>
+    </div>
+    
+    <div class="card" style="margin-top: 20px;">
+      <h2>
+        👥 WhatsApp Groups
+        <button class="refresh-btn" onclick="loadGroups()">🔄 Refresh</button>
+      </h2>
+      <div id="groupsContainer">
+        <p style="text-align: center; color: #666; padding: 20px;">
+          ${isReady ? 'Loading groups...' : 'Connect WhatsApp first to see groups'}
+        </p>
       </div>
     </div>
   </div>
@@ -640,6 +710,72 @@ function sendDashboard(res, qrImageUrl) {
         });
     }, 10000);
     ` : ''}
+    
+    // Load groups on page load if connected
+    ${isReady ? `
+    window.addEventListener('load', () => {
+      loadGroups();
+    });
+    ` : ''}
+    
+    async function loadGroups() {
+      const container = document.getElementById('groupsContainer');
+      
+      if (!${isReady}) {
+        container.innerHTML = '<p style="text-align: center; color: #666; padding: 20px;">Connect WhatsApp first to see groups</p>';
+        return;
+      }
+      
+      try {
+        container.innerHTML = '<p style="text-align: center; color: #666; padding: 20px;">Loading groups...</p>';
+        
+        const response = await fetch('/api/groups');
+        const result = await response.json();
+        
+        if (result.status === 'success' && result.groups && result.groups.length > 0) {
+          let html = '<div class="groups-container">';
+          html += '<table class="groups-table">';
+          html += '<thead><tr><th>Group Name</th><th>Group ID</th><th>Participants</th><th>Created</th><th>Actions</th></tr></thead>';
+          html += '<tbody>';
+          
+          result.groups.forEach(group => {
+            const createdDate = group.creation ? new Date(group.creation).toLocaleDateString() : 'Unknown';
+            html += '<tr>';
+            html += '<td class="group-subject">' + escapeHtml(group.subject) + '</td>';
+            html += '<td><span class="group-id">' + escapeHtml(group.id) + '</span></td>';
+            html += '<td>' + group.participants + ' members</td>';
+            html += '<td>' + createdDate + '</td>';
+            html += '<td><button class="copy-btn" onclick="copyGroupId(\'' + escapeHtml(group.id) + '\')">📋 Copy ID</button></td>';
+            html += '</tr>';
+          });
+          
+          html += '</tbody></table>';
+          html += '<p style="margin-top: 15px; color: #666; text-align: center;">Total: ' + result.total + ' groups</p>';
+          html += '</div>';
+          
+          container.innerHTML = html;
+        } else {
+          container.innerHTML = '<p style="text-align: center; color: #666; padding: 20px;">No groups found. You may not be a member of any groups.</p>';
+        }
+      } catch (error) {
+        console.error('Error loading groups:', error);
+        container.innerHTML = '<p style="text-align: center; color: #ff4444; padding: 20px;">Error loading groups: ' + escapeHtml(error.message) + '</p>';
+      }
+    }
+    
+    function copyGroupId(groupId) {
+      navigator.clipboard.writeText(groupId).then(() => {
+        showAlert('✅ Group ID copied to clipboard: ' + groupId, 'success');
+      }).catch(err => {
+        showAlert('❌ Failed to copy: ' + err.message, 'error');
+      });
+    }
+    
+    function escapeHtml(text) {
+      const div = document.createElement('div');
+      div.textContent = text;
+      return div.innerHTML;
+    }
   </script>
 </body>
 </html>
@@ -833,9 +969,21 @@ app.post('/api/send-message', upload.single('image'), async (req, res) => {
       });
     }
 
-    // Format number for Baileys (use @s.whatsapp.net)
-    const cleanNumber = number.replace(/[^\d+]/g, '');
-    const jid = `${cleanNumber}@s.whatsapp.net`;
+    // Format JID for Baileys
+    // If number already contains @g.us or @s.whatsapp.net, use it as-is (group or already formatted)
+    // Otherwise, format as individual contact @s.whatsapp.net
+    let jid;
+    if (number.includes('@g.us')) {
+      // Group JID - use as-is
+      jid = number;
+    } else if (number.includes('@s.whatsapp.net')) {
+      // Already formatted individual JID - use as-is
+      jid = number;
+    } else {
+      // Individual contact - format number and add @s.whatsapp.net
+      const cleanNumber = number.replace(/[^\d+]/g, '');
+      jid = `${cleanNumber}@s.whatsapp.net`;
+    }
 
     let result;
 
@@ -910,6 +1058,44 @@ app.get('/api/status', (req, res) => {
     hasQrCode: !!qrCodeData,
     hasSocket: !!sock
   });
+});
+
+// Get all groups
+app.get('/api/groups', async (req, res) => {
+  try {
+    if (!isReady || !sock) {
+      return res.status(400).json({
+        status: 'error',
+        message: 'WhatsApp client is not ready. Please scan QR code first.'
+      });
+    }
+
+    // Fetch all groups using Baileys
+    const groups = await sock.groupFetchAllParticipating();
+    
+    // Format groups data
+    const groupsList = Object.values(groups).map(group => ({
+      id: group.id,
+      subject: group.subject || 'No Subject',
+      description: group.desc || '',
+      creation: group.creation ? new Date(group.creation * 1000).toISOString() : null,
+      owner: group.owner || '',
+      participants: group.participants ? group.participants.length : 0,
+      size: group.size || 0
+    }));
+
+    res.json({
+      status: 'success',
+      groups: groupsList,
+      total: groupsList.length
+    });
+  } catch (error) {
+    console.error('Error fetching groups:', error);
+    res.status(500).json({
+      status: 'error',
+      message: error.message || 'Failed to fetch groups'
+    });
+  }
 });
 
 // Disconnect/Logout endpoint
