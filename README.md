@@ -13,6 +13,7 @@ A REST API server using Baileys that allows you to send messages and images via 
 ## Installation
 
 1. Install dependencies:
+
 ```bash
 npm install
 ```
@@ -20,11 +21,13 @@ npm install
 ## Usage
 
 1. Start the server:
+
 ```bash
 npm start
 ```
 
 For development with auto-reload:
+
 ```bash
 npm run dev
 ```
@@ -36,12 +39,15 @@ npm run dev
 ## API Endpoints
 
 ### 1. Health Check
+
 ```
-GET /
+GET /api
 ```
+
 Returns server status and WhatsApp connection status.
 
 **Response:**
+
 ```json
 {
   "status": "OK",
@@ -51,12 +57,15 @@ Returns server status and WhatsApp connection status.
 ```
 
 ### 2. Get QR Code (JSON)
+
 ```
-GET /api/qr
+GET /qr
 ```
+
 Returns QR code data as JSON.
 
 **Response:**
+
 ```json
 {
   "status": "success",
@@ -66,18 +75,23 @@ Returns QR code data as JSON.
 ```
 
 ### 3. Get QR Code (HTML Display)
+
 ```
-GET /api/qr/display
+GET /qr/display
 ```
+
 Returns an HTML page with a scannable QR code. This is the easiest way to connect your WhatsApp account.
 
 ### 4. Get Status
+
 ```
-GET /api/status
+GET /status
 ```
+
 Returns the current status of the WhatsApp client.
 
 **Response:**
+
 ```json
 {
   "status": "ready",
@@ -88,8 +102,9 @@ Returns the current status of the WhatsApp client.
 ```
 
 ### 5. Disconnect/Logout
+
 ```
-POST /api/disconnect
+POST /disconnect
 Content-Type: application/json
 
 {
@@ -100,9 +115,11 @@ Content-Type: application/json
 Disconnects from WhatsApp. Optionally deletes authentication files to completely logout.
 
 **Parameters:**
+
 - `deleteAuth` (optional, default: `false`): If `true`, deletes all auth files. You will need to scan QR code again.
 
 **Response:**
+
 ```json
 {
   "status": "success",
@@ -112,6 +129,7 @@ Disconnects from WhatsApp. Optionally deletes authentication files to completely
 ```
 
 **To completely logout and remove session:**
+
 ```json
 {
   "deleteAuth": true
@@ -119,11 +137,13 @@ Disconnects from WhatsApp. Optionally deletes authentication files to completely
 ```
 
 ### 6. Send Message (Image Optional)
+
 ```
-POST /api/send-message
+POST /send-message
 ```
 
 **For text-only messages:**
+
 ```
 Content-Type: application/json
 
@@ -134,6 +154,7 @@ Content-Type: application/json
 ```
 
 **For messages with image:**
+
 ```
 Content-Type: multipart/form-data
 
@@ -144,12 +165,14 @@ Form Data:
 ```
 
 **Parameters:**
+
 - `number` (required): Phone number in international format (e.g., "1234567890" or "+1234567890")
 - `message` (required for text-only, optional when image is provided): Text message or caption
 - `image` (optional): Image file (supports: jpeg, jpg, png, gif, pdf, doc, docx, mp4, mp3, ogg, webp)
 - Max file size: 10MB
 
 **Response:**
+
 ```json
 {
   "status": "success",
@@ -165,6 +188,7 @@ Form Data:
 ### Using cURL
 
 **Send text message:**
+
 ```bash
 curl -X POST http://localhost:3000/api/send-message \
   -H "Content-Type: application/json" \
@@ -175,6 +199,7 @@ curl -X POST http://localhost:3000/api/send-message \
 ```
 
 **Send message with image:**
+
 ```bash
 curl -X POST http://localhost:3000/api/send-message \
   -F "number=1234567890" \
@@ -185,34 +210,36 @@ curl -X POST http://localhost:3000/api/send-message \
 ### Using JavaScript (Fetch)
 
 **Send text message:**
+
 ```javascript
-fetch('http://localhost:3000/api/send-message', {
-  method: 'POST',
+fetch("http://localhost:3000/api/send-message", {
+  method: "POST",
   headers: {
-    'Content-Type': 'application/json',
+    "Content-Type": "application/json",
   },
   body: JSON.stringify({
-    number: '1234567890',
-    message: 'Hello from WhatsApp API!'
-  })
+    number: "1234567890",
+    message: "Hello from WhatsApp API!",
+  }),
 })
-.then(res => res.json())
-.then(data => console.log(data));
+  .then((res) => res.json())
+  .then((data) => console.log(data));
 ```
 
 **Send message with image:**
+
 ```javascript
 const formData = new FormData();
-formData.append('number', '1234567890');
-formData.append('message', 'Check out this image!');
-formData.append('image', fileInput.files[0]);
+formData.append("number", "1234567890");
+formData.append("message", "Check out this image!");
+formData.append("image", fileInput.files[0]);
 
-fetch('http://localhost:3000/api/send-message', {
-  method: 'POST',
-  body: formData
+fetch("http://localhost:3000/api/send-message", {
+  method: "POST",
+  body: formData,
 })
-.then(res => res.json())
-.then(data => console.log(data));
+  .then((res) => res.json())
+  .then((data) => console.log(data));
 ```
 
 ## Notes
@@ -227,6 +254,7 @@ fetch('http://localhost:3000/api/send-message', {
 ## Disconnecting/Logging Out
 
 ### Method 1: Using API Endpoint
+
 ```bash
 # Disconnect but keep session (can reconnect without QR code)
 curl -X POST http://localhost:3000/api/disconnect \
@@ -240,7 +268,9 @@ curl -X POST http://localhost:3000/api/disconnect \
 ```
 
 ### Method 2: Manual Disconnect
+
 To completely remove the WhatsApp session:
+
 1. Stop the server (Ctrl+C)
 2. Delete the `auth_info/` folder
 3. Restart the server
@@ -250,17 +280,19 @@ To completely remove the WhatsApp session:
 
 1. **QR Code not showing**: Make sure to visit `/api/qr/display` endpoint and wait a few seconds for the QR code to generate.
 
-2. **Message not sending**: 
+2. **Message not sending**:
+
    - Check if WhatsApp is connected (visit `/api/status`)
    - Verify the phone number format
    - Make sure the number includes country code
 
-3. **Image upload fails**: 
+3. **Image upload fails**:
+
    - Check file size (max 10MB)
    - Verify file type is supported
    - Ensure the `uploads/` directory has write permissions
 
-4. **Want to switch WhatsApp account**: 
+4. **Want to switch WhatsApp account**:
    - Use `/api/disconnect` with `deleteAuth: true`
    - Or manually delete the `auth_info/` folder
    - Restart server and scan new QR code
@@ -268,4 +300,3 @@ To completely remove the WhatsApp session:
 ## License
 
 ISC
-

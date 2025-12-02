@@ -40,12 +40,12 @@ async function sendTestImage() {
 
     // Check server status first
     console.log('📡 Checking server status...');
-    const statusResponse = await fetch(`${BASE_URL}/api/status`);
+    const statusResponse = await fetch(`${BASE_URL}/status`);
     const statusData = await statusResponse.json();
     
     if (!statusData.isReady) {
       console.error('❌ Error: WhatsApp client is not ready!');
-      console.log('Please scan the QR code first at:', `${BASE_URL}/api/qr/display`);
+      console.log('Please scan the QR code first at:', `${BASE_URL}/qr/display`);
       process.exit(1);
     }
     
@@ -61,7 +61,7 @@ async function sendTestImage() {
 
     // Send request
     console.log('📤 Sending image message...');
-    const response = await fetch(`${BASE_URL}/api/send-message`, {
+    const response = await fetch(`${BASE_URL}/send-message`, {
       method: 'POST',
       body: formData
     });

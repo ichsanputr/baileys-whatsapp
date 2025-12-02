@@ -5,12 +5,12 @@
  * Run this after starting the server with: npm start
  */
 
-const BASE_URL = 'http://localhost:3000';
+const BASE_URL = 'http://localhost:5000';
 
 // Example 1: Check server status
 async function checkStatus() {
   try {
-    const response = await fetch(`${BASE_URL}/api/status`);
+    const response = await fetch(`${BASE_URL}/status`);
     const data = await response.json();
     console.log('Server Status:', data);
   } catch (error) {
@@ -21,7 +21,7 @@ async function checkStatus() {
 // Example 2: Get QR Code (JSON)
 async function getQRCode() {
   try {
-    const response = await fetch(`${BASE_URL}/api/qr`);
+    const response = await fetch(`${BASE_URL}/qr`);
     const data = await response.json();
     console.log('QR Code:', data);
   } catch (error) {
@@ -32,7 +32,7 @@ async function getQRCode() {
 // Example 3: Send text message
 async function sendTextMessage(number, message) {
   try {
-    const response = await fetch(`${BASE_URL}/api/send-message`, {
+    const response = await fetch(`${BASE_URL}/send-message`, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
@@ -61,7 +61,7 @@ async function sendMessageWithImage(number, imagePath, caption = '') {
     formData.append('message', caption);
     formData.append('image', fs.createReadStream(imagePath));
 
-    const response = await fetch(`${BASE_URL}/api/send-message`, {
+    const response = await fetch(`${BASE_URL}/send-message`, {
       method: 'POST',
       body: formData
     });
@@ -86,4 +86,3 @@ module.exports = {
   sendTextMessage,
   sendMessageWithImage
 };
-
