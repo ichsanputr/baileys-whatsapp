@@ -60,6 +60,7 @@ const upload = multer({
 let qrCodeData = null;
 let sock = null;
 let isReady = false;
+let userInfo = null; // Store user info when connected
 
 // Initialize WhatsApp Socket with Baileys
 async function initializeWhatsApp() {
@@ -112,6 +113,14 @@ async function initializeWhatsApp() {
         console.log('WhatsApp client is ready!');
         isReady = true;
         qrCodeData = null; // Clear QR code once ready
+        
+        // Get user info
+        if (sock.user) {
+          userInfo = {
+            id: sock.user.id,
+            name: sock.user.name || 'Unknown'
+          };
+        }
       }
     });
 
@@ -135,8 +144,497 @@ initializeWhatsApp();
 
 // Routes
 
-// Health check endpoint
-app.get('/', (req, res) => {
+// Dashboard endpoint - All features in one page
+app.get('/', async (req, res) => {
+  const QRCode = require('qrcode');
+  
+  // Generate QR code image if available
+  let qrImageUrl = null;
+  if (qrCodeData) {
+    try {
+      qrImageUrl = await QRCode.toDataURL(qrCodeData);
+    } catch (err) {
+      console.error('Error generating QR code:', err);
+    }
+  }
+  sendDashboard(res, qrImageUrl);
+});
+
+function sendDashboard(res, qrImageUrl) {
+  res.send(`
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>WhatsApp API Dashboard</title>
+  <style>
+    * {
+      margin: 0;
+      padding: 0;
+      box-sizing: border-box;
+    }
+    
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, sans-serif;
+      background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+      min-height: 100vh;
+      padding: 20px;
+    }
+    
+    .container {
+      max-width: 1200px;
+      margin: 0 auto;
+    }
+    
+    .header {
+      text-align: center;
+      color: white;
+      margin-bottom: 30px;
+    }
+    
+    .header h1 {
+      font-size: 2.5em;
+      margin-bottom: 10px;
+    }
+    
+    .status-card {
+      background: white;
+      border-radius: 15px;
+      padding: 25px;
+      margin-bottom: 20px;
+      box-shadow: 0 10px 30px rgba(0,0,0,0.2);
+    }
+    
+    .status-indicator {
+      display: inline-block;
+      width: 12px;
+      height: 12px;
+      border-radius: 50%;
+      margin-right: 8px;
+    }
+    
+    .status-indicator.ready {
+      background: #25D366;
+      box-shadow: 0 0 10px #25D366;
+    }
+    
+    .status-indicator.not-ready {
+      background: #ff4444;
+      box-shadow: 0 0 10px #ff4444;
+    }
+    
+    .status-indicator.waiting {
+      background: #ffaa00;
+      box-shadow: 0 0 10px #ffaa00;
+    }
+    
+    .grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+      gap: 20px;
+      margin-bottom: 20px;
+    }
+    
+    .card {
+      background: white;
+      border-radius: 15px;
+      padding: 25px;
+      box-shadow: 0 10px 30px rgba(0,0,0,0.2);
+    }
+    
+    .card h2 {
+      color: #333;
+      margin-bottom: 20px;
+      font-size: 1.5em;
+      border-bottom: 2px solid #667eea;
+      padding-bottom: 10px;
+    }
+    
+    .qr-container {
+      text-align: center;
+      padding: 20px;
+    }
+    
+    .qr-container img {
+      max-width: 100%;
+      border-radius: 10px;
+      box-shadow: 0 5px 15px rgba(0,0,0,0.1);
+    }
+    
+    .qr-instructions {
+      margin-top: 20px;
+      color: #666;
+      line-height: 1.8;
+    }
+    
+    .form-group {
+      margin-bottom: 20px;
+    }
+    
+    .form-group label {
+      display: block;
+      margin-bottom: 8px;
+      color: #333;
+      font-weight: 600;
+    }
+    
+    .form-group input,
+    .form-group textarea {
+      width: 100%;
+      padding: 12px;
+      border: 2px solid #e0e0e0;
+      border-radius: 8px;
+      font-size: 14px;
+      transition: border-color 0.3s;
+    }
+    
+    .form-group input:focus,
+    .form-group textarea:focus {
+      outline: none;
+      border-color: #667eea;
+    }
+    
+    .form-group textarea {
+      resize: vertical;
+      min-height: 100px;
+    }
+    
+    .btn {
+      padding: 12px 24px;
+      border: none;
+      border-radius: 8px;
+      font-size: 16px;
+      font-weight: 600;
+      cursor: pointer;
+      transition: all 0.3s;
+      width: 100%;
+    }
+    
+    .btn-primary {
+      background: #25D366;
+      color: white;
+    }
+    
+    .btn-primary:hover {
+      background: #20ba5a;
+      transform: translateY(-2px);
+      box-shadow: 0 5px 15px rgba(37, 211, 102, 0.3);
+    }
+    
+    .btn-danger {
+      background: #ff4444;
+      color: white;
+      margin-top: 10px;
+    }
+    
+    .btn-danger:hover {
+      background: #cc0000;
+      transform: translateY(-2px);
+      box-shadow: 0 5px 15px rgba(255, 68, 68, 0.3);
+    }
+    
+    .btn:disabled {
+      background: #ccc;
+      cursor: not-allowed;
+      transform: none;
+    }
+    
+    .alert {
+      padding: 15px;
+      border-radius: 8px;
+      margin-bottom: 20px;
+      display: none;
+    }
+    
+    .alert.show {
+      display: block;
+    }
+    
+    .alert.success {
+      background: #d4edda;
+      color: #155724;
+      border: 1px solid #c3e6cb;
+    }
+    
+    .alert.error {
+      background: #f8d7da;
+      color: #721c24;
+      border: 1px solid #f5c6cb;
+    }
+    
+    .info-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+      gap: 15px;
+      margin-top: 20px;
+    }
+    
+    .info-item {
+      padding: 15px;
+      background: #f8f9fa;
+      border-radius: 8px;
+      text-align: center;
+    }
+    
+    .info-item strong {
+      display: block;
+      color: #667eea;
+      margin-bottom: 5px;
+    }
+    
+    .refresh-btn {
+      background: #667eea;
+      color: white;
+      border: none;
+      padding: 8px 16px;
+      border-radius: 6px;
+      cursor: pointer;
+      font-size: 14px;
+      margin-left: 10px;
+    }
+    
+    .refresh-btn:hover {
+      background: #5568d3;
+    }
+    
+    .file-input-wrapper {
+      position: relative;
+      overflow: hidden;
+      display: inline-block;
+      width: 100%;
+    }
+    
+    .file-input-wrapper input[type=file] {
+      position: absolute;
+      left: -9999px;
+    }
+    
+    .file-input-label {
+      display: block;
+      padding: 12px;
+      background: #f8f9fa;
+      border: 2px dashed #ccc;
+      border-radius: 8px;
+      text-align: center;
+      cursor: pointer;
+      transition: all 0.3s;
+    }
+    
+    .file-input-label:hover {
+      background: #e9ecef;
+      border-color: #667eea;
+    }
+    
+    .file-name {
+      margin-top: 8px;
+      color: #666;
+      font-size: 14px;
+    }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <div class="header">
+      <h1>📱 WhatsApp API Dashboard</h1>
+      <p>Control Center for WhatsApp REST API</p>
+    </div>
+    
+    <div class="status-card">
+      <h2>
+        <span class="status-indicator ${isReady ? 'ready' : (qrCodeData ? 'waiting' : 'not-ready')}"></span>
+        Connection Status
+        <button class="refresh-btn" onclick="refreshStatus()">🔄 Refresh</button>
+      </h2>
+      <div id="statusInfo">
+        <p><strong>Status:</strong> <span id="statusText">${isReady ? 'Connected' : (qrCodeData ? 'Waiting for QR Scan' : 'Not Connected')}</span></p>
+        <p><strong>Socket:</strong> <span id="socketStatus">${sock ? 'Active' : 'Inactive'}</span></p>
+        ${userInfo ? `<p><strong>User ID:</strong> <span>${userInfo.id}</span></p>` : ''}
+      </div>
+    </div>
+    
+    <div class="grid">
+      ${qrCodeData && !isReady ? `
+      <div class="card">
+        <h2>📱 QR Code</h2>
+        <div class="qr-container">
+          ${qrImageUrl ? `<img src="${qrImageUrl}" alt="QR Code">` : '<p>Generating QR code...</p>'}
+          <div class="qr-instructions">
+            <p><strong>How to connect:</strong></p>
+            <ol style="text-align: left; display: inline-block;">
+              <li>Open WhatsApp on your phone</li>
+              <li>Go to Settings → Linked Devices</li>
+              <li>Tap "Link a Device"</li>
+              <li>Scan this QR code</li>
+            </ol>
+          </div>
+        </div>
+      </div>
+      ` : ''}
+      
+      <div class="card">
+        <h2>💬 Send Message</h2>
+        <div id="alert" class="alert"></div>
+        <form id="messageForm" onsubmit="sendMessage(event)">
+          <div class="form-group">
+            <label for="number">Phone Number *</label>
+            <input type="text" id="number" placeholder="628999812190" required>
+          </div>
+          
+          <div class="form-group">
+            <label for="message">Message *</label>
+            <textarea id="message" placeholder="Type your message here..." required></textarea>
+          </div>
+          
+          <div class="form-group">
+            <label>Image (Optional)</label>
+            <div class="file-input-wrapper">
+              <label for="image" class="file-input-label">
+                📷 Click to select image
+              </label>
+              <input type="file" id="image" accept="image/*" onchange="handleFileSelect(event)">
+              <div id="fileName" class="file-name"></div>
+            </div>
+          </div>
+          
+          <button type="submit" class="btn btn-primary" ${!isReady ? 'disabled' : ''}>
+            ${!isReady ? '⏳ Connect WhatsApp First' : '📤 Send Message'}
+          </button>
+        </form>
+      </div>
+      
+      <div class="card">
+        <h2>⚙️ Actions</h2>
+        <button class="btn btn-danger" onclick="disconnect(false)">
+          🔌 Disconnect (Keep Session)
+        </button>
+        <button class="btn btn-danger" onclick="disconnect(true)" style="background: #cc0000;">
+          🗑️ Logout (Delete Session)
+        </button>
+        <div class="info-grid" style="margin-top: 20px;">
+          <div class="info-item">
+            <strong>API Endpoint</strong>
+            <span>POST /api/send-message</span>
+          </div>
+          <div class="info-item">
+            <strong>Status Endpoint</strong>
+            <span>GET /api/status</span>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+  
+  <script>
+    let selectedFile = null;
+    
+    function handleFileSelect(event) {
+      const file = event.target.files[0];
+      if (file) {
+        selectedFile = file;
+        document.getElementById('fileName').textContent = 'Selected: ' + file.name;
+      }
+    }
+    
+    async function sendMessage(event) {
+      event.preventDefault();
+      
+      const number = document.getElementById('number').value;
+      const message = document.getElementById('message').value;
+      const alertDiv = document.getElementById('alert');
+      
+      if (!number || !message) {
+        showAlert('Please fill in all required fields', 'error');
+        return;
+      }
+      
+      const formData = new FormData();
+      formData.append('number', number);
+      formData.append('message', message);
+      if (selectedFile) {
+        formData.append('image', selectedFile);
+      }
+      
+      try {
+        showAlert('Sending message...', 'success');
+        const response = await fetch('/api/send-message', {
+          method: 'POST',
+          body: formData
+        });
+        
+        const result = await response.json();
+        
+        if (result.status === 'success') {
+          showAlert('✅ Message sent successfully! Message ID: ' + result.messageId, 'success');
+          document.getElementById('messageForm').reset();
+          document.getElementById('fileName').textContent = '';
+          selectedFile = null;
+        } else {
+          showAlert('❌ Error: ' + result.message, 'error');
+        }
+      } catch (error) {
+        showAlert('❌ Error: ' + error.message, 'error');
+      }
+    }
+    
+    async function disconnect(deleteAuth) {
+      if (!confirm(deleteAuth 
+        ? 'Are you sure you want to logout and delete the session? You will need to scan QR code again.' 
+        : 'Are you sure you want to disconnect?')) {
+        return;
+      }
+      
+      try {
+        const response = await fetch('/api/disconnect', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ deleteAuth })
+        });
+        
+        const result = await response.json();
+        showAlert(result.message, result.status === 'success' ? 'success' : 'error');
+        
+        setTimeout(() => {
+          location.reload();
+        }, 2000);
+      } catch (error) {
+        showAlert('❌ Error: ' + error.message, 'error');
+      }
+    }
+    
+    function refreshStatus() {
+      location.reload();
+    }
+    
+    function showAlert(message, type) {
+      const alertDiv = document.getElementById('alert');
+      alertDiv.textContent = message;
+      alertDiv.className = 'alert show ' + type;
+      setTimeout(() => {
+        alertDiv.classList.remove('show');
+      }, 5000);
+    }
+    
+    // Auto-refresh status every 10 seconds if not connected
+    ${!isReady ? `
+    setInterval(() => {
+      fetch('/api/status')
+        .then(res => res.json())
+        .then(data => {
+          if (data.isReady !== ${isReady}) {
+            location.reload();
+          }
+        });
+    }, 10000);
+    ` : ''}
+  </script>
+</body>
+</html>
+  `);
+}
+
+// Health check endpoint (API)
+app.get('/api', (req, res) => {
   res.json({
     status: 'OK',
     message: 'WhatsApp REST API is running (Baileys)',
@@ -401,9 +899,78 @@ app.get('/api/status', (req, res) => {
   });
 });
 
+// Disconnect/Logout endpoint
+app.post('/api/disconnect', async (req, res) => {
+  try {
+    const { deleteAuth = false } = req.body; // Option to delete auth files
+
+    if (!sock) {
+      return res.json({
+        status: 'success',
+        message: 'Already disconnected. No active connection.'
+      });
+    }
+
+    console.log('Disconnecting WhatsApp...');
+    
+    // Logout from WhatsApp
+    try {
+      await sock.logout();
+      console.log('Logged out from WhatsApp');
+    } catch (error) {
+      console.log('Error during logout:', error.message);
+    }
+
+    // Close the socket
+    if (sock.end) {
+      sock.end();
+    }
+    
+    sock = null;
+    isReady = false;
+    qrCodeData = null;
+
+    // Optionally delete auth files to completely remove session
+    if (deleteAuth) {
+      try {
+        const authDir = path.join(__dirname, 'auth_info');
+        if (fs.existsSync(authDir)) {
+          fs.rmSync(authDir, { recursive: true, force: true });
+          console.log('Auth files deleted');
+        }
+      } catch (error) {
+        console.error('Error deleting auth files:', error);
+      }
+    }
+
+    res.json({
+      status: 'success',
+      message: deleteAuth 
+        ? 'Disconnected and auth files deleted. You will need to scan QR code again.' 
+        : 'Disconnected successfully. Reconnecting will use existing session.',
+      deletedAuth: deleteAuth
+    });
+
+    // Reinitialize after a short delay if not deleting auth
+    if (!deleteAuth) {
+      setTimeout(() => {
+        initializeWhatsApp();
+      }, 2000);
+    }
+
+  } catch (error) {
+    console.error('Error disconnecting:', error);
+    res.status(500).json({
+      status: 'error',
+      message: error.message
+    });
+  }
+});
+
 // Start server
 app.listen(PORT, () => {
   console.log(`WhatsApp REST API server is running on http://localhost:${PORT}`);
+  console.log(`📊 Dashboard: http://localhost:${PORT}/`);
   console.log(`QR Code endpoint: http://localhost:${PORT}/api/qr/display`);
   console.log(`Using Baileys library for WhatsApp integration`);
 });

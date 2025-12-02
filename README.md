@@ -82,11 +82,43 @@ Returns the current status of the WhatsApp client.
 {
   "status": "ready",
   "isReady": true,
-  "hasQrCode": false
+  "hasQrCode": false,
+  "hasSocket": true
 }
 ```
 
-### 5. Send Message (Image Optional)
+### 5. Disconnect/Logout
+```
+POST /api/disconnect
+Content-Type: application/json
+
+{
+  "deleteAuth": false
+}
+```
+
+Disconnects from WhatsApp. Optionally deletes authentication files to completely logout.
+
+**Parameters:**
+- `deleteAuth` (optional, default: `false`): If `true`, deletes all auth files. You will need to scan QR code again.
+
+**Response:**
+```json
+{
+  "status": "success",
+  "message": "Disconnected successfully. Reconnecting will use existing session.",
+  "deletedAuth": false
+}
+```
+
+**To completely logout and remove session:**
+```json
+{
+  "deleteAuth": true
+}
+```
+
+### 6. Send Message (Image Optional)
 ```
 POST /api/send-message
 ```
@@ -192,6 +224,28 @@ fetch('http://localhost:3000/api/send-message', {
 - The server automatically reconnects if the WhatsApp connection is lost
 - This project uses [Baileys](https://github.com/WhiskeySockets/Baileys) - a WebSocket-based library that doesn't require browser automation, making it more stable and efficient
 
+## Disconnecting/Logging Out
+
+### Method 1: Using API Endpoint
+```bash
+# Disconnect but keep session (can reconnect without QR code)
+curl -X POST http://localhost:3000/api/disconnect \
+  -H "Content-Type: application/json" \
+  -d '{"deleteAuth": false}'
+
+# Completely logout and delete session (need to scan QR code again)
+curl -X POST http://localhost:3000/api/disconnect \
+  -H "Content-Type: application/json" \
+  -d '{"deleteAuth": true}'
+```
+
+### Method 2: Manual Disconnect
+To completely remove the WhatsApp session:
+1. Stop the server (Ctrl+C)
+2. Delete the `auth_info/` folder
+3. Restart the server
+4. Scan QR code again
+
 ## Troubleshooting
 
 1. **QR Code not showing**: Make sure to visit `/api/qr/display` endpoint and wait a few seconds for the QR code to generate.
@@ -205,6 +259,11 @@ fetch('http://localhost:3000/api/send-message', {
    - Check file size (max 10MB)
    - Verify file type is supported
    - Ensure the `uploads/` directory has write permissions
+
+4. **Want to switch WhatsApp account**: 
+   - Use `/api/disconnect` with `deleteAuth: true`
+   - Or manually delete the `auth_info/` folder
+   - Restart server and scan new QR code
 
 ## License
 
