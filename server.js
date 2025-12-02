@@ -110,56 +110,76 @@ async function initializeWhatsApp() {
     const { state, saveCreds } = await useMultiFileAuthState("auth_info");
 
     // Fetch latest version
-    const { version } = await fetchLatestBaileysVersion();
+    const { version, isLatest } = await fetchLatestBaileysVersion();
+    console.log(`Using WA v${version.join(".")}, isLatest: ${isLatest}`);
 
     sock = makeWASocket({
       version,
       logger: pino({ level: "silent" }),
-      printQRInTerminal: true,
+      printQRInTerminal: false, // Disabled to avoid deprecation warning
       auth: state,
-      browser: ["WhatsApp REST API", "Chrome", "1.0.0"],
+      browser: ["Chrome (Linux)", "", ""], // Better browser identification
+      defaultQueryTimeoutMs: undefined,
+      syncFullHistory: false,
+      markOnlineOnConnect: true,
     });
 
     // Save credentials when updated
     sock.ev.on("creds.update", saveCreds);
 
     // Handle connection updates
-    sock.ev.on("connection.update", (update) => {
+    sock.ev.on("connection.update", async (update) => {
       const { connection, lastDisconnect, qr } = update;
 
       // Handle QR code
       if (qr) {
-        console.log("QR Code received, scan it!");
+        console.log("QR Code received! Please scan it.");
         qrCodeData = qr;
-        // Display QR code in terminal
-        qrcode.generate(qr, { small: true });
       }
 
       // Handle connection status
       if (connection === "close") {
+        const statusCode = lastDisconnect?.error?.output?.statusCode;
         const shouldReconnect =
           lastDisconnect?.error instanceof Boom
-            ? lastDisconnect.error.output.statusCode !==
-              DisconnectReason.loggedOut
+            ? statusCode !== DisconnectReason.loggedOut
             : true;
+
         console.log(
-          "Connection closed due to ",
+          "Connection closed due to",
           lastDisconnect?.error,
-          ", reconnecting ",
+          ", reconnecting:",
           shouldReconnect
         );
 
         isReady = false;
         qrCodeData = null;
 
+        // Handle specific error codes
+        if (statusCode === 401) {
+          console.log("❌ Session expired or invalid. Deleting auth files...");
+          // Delete auth files
+          try {
+            const authDir = path.join(__dirname, "auth_info");
+            if (fs.existsSync(authDir)) {
+              fs.rmSync(authDir, { recursive: true, force: true });
+              console.log("✅ Auth files deleted. Restart server to get new QR code.");
+            }
+          } catch (error) {
+            console.error("Error deleting auth files:", error);
+          }
+          return; // Don't reconnect, let user restart
+        }
+
         if (shouldReconnect) {
           // Reconnect after 5 seconds
           setTimeout(() => {
+            console.log("Reconnecting...");
             initializeWhatsApp();
           }, 5000);
         }
       } else if (connection === "open") {
-        console.log("WhatsApp client is ready!");
+        console.log("✅ WhatsApp client is ready!");
         isReady = true;
         qrCodeData = null; // Clear QR code once ready
 
@@ -169,6 +189,7 @@ async function initializeWhatsApp() {
             id: sock.user.id,
             name: sock.user.name || "Unknown",
           };
+          console.log(`Connected as: ${userInfo.name} (${userInfo.id})`);
         }
       }
     });
@@ -651,6 +672,62 @@ app.post("/disconnect", async (req, res) => {
       status: "error",
       message: error.message || "Unknown error occurred",
       deletedAuth: false,
+    });
+  }
+});
+
+// Clear auth endpoint - for fixing 401 errors
+app.post("/clear-auth", async (req, res) => {
+  try {
+    res.setHeader("Content-Type", "application/json");
+
+    console.log("Clearing auth files...");
+
+    // Close socket if exists
+    if (sock) {
+      try {
+        if (typeof sock.end === "function") {
+          sock.end();
+        }
+      } catch (error) {
+        console.log("Error closing socket:", error.message);
+      }
+      sock = null;
+    }
+
+    isReady = false;
+    qrCodeData = null;
+
+    // Delete auth files
+    try {
+      const authDir = path.join(__dirname, "auth_info");
+      if (fs.existsSync(authDir)) {
+        fs.rmSync(authDir, { recursive: true, force: true });
+        console.log("✅ Auth files deleted successfully");
+      }
+    } catch (error) {
+      console.error("Error deleting auth files:", error);
+      return res.status(500).json({
+        status: "error",
+        message: "Failed to delete auth files: " + error.message,
+      });
+    }
+
+    res.json({
+      status: "success",
+      message: "Auth files cleared successfully. Reconnecting...",
+    });
+
+    // Reinitialize after a short delay
+    setTimeout(() => {
+      console.log("Reinitializing WhatsApp...");
+      initializeWhatsApp();
+    }, 2000);
+  } catch (error) {
+    console.error("Error clearing auth:", error);
+    res.status(500).json({
+      status: "error",
+      message: error.message || "Unknown error occurred",
     });
   }
 });
