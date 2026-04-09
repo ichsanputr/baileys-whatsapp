@@ -887,19 +887,19 @@
               document.getElementById('qrImage').src = canvas.toDataURL();
             } catch (err) {
               console.error('Error generating QR canvas:', err);
-              document.getElementById('qrImage').src = apiUrl('qr/display') + '?' + Date.now();
+              document.getElementById('qrImage').src = apiUrl('qr/image') + '?' + Date.now();
             }
           };
           script.onerror = () => {
-            document.getElementById('qrImage').src = '/qr/display?' + Date.now();
+            document.getElementById('qrImage').src = apiUrl('qr/image') + '?' + Date.now();
           };
           document.head.appendChild(script);
         } else {
-          document.getElementById('qrImage').src = '/qr/display?' + Date.now();
+          document.getElementById('qrImage').src = apiUrl('qr/image') + '?' + Date.now();
         }
       } catch (error) {
         console.error('Error loading QR code:', error);
-        document.getElementById('qrImage').src = '/qr/display?' + Date.now();
+        document.getElementById('qrImage').src = '/qr/image?' + Date.now();
       }
     }
     

@@ -19,26 +19,30 @@ const PORT = process.env.PORT || 5000;
 // Middleware - CORS restricted to namia.online (allows localhost for development)
 const corsOptions = {
   origin: function (origin, callback) {
-    // Allow requests from namia.online and its subdomains
+    // Allow requests from namia.online and irandra.my.id (and their subdomains)
     const allowedOrigins = [
       "https://namia.online",
       "https://kurir.namia.online",
       "http://namia.online",
       "https://www.namia.online",
       "http://www.namia.online",
+      "https://irandra.my.id",
+      "https://api.irandra.my.id",
+      "http://irandra.my.id",
     ];
 
     // Allow requests with no origin (like mobile apps, curl, Postman)
     // OR from localhost (for development)
+    // OR from the allowed domains
     if (
       !origin ||
-      allowedOrigins.some((allowed) => origin.includes("namia.online")) ||
+      allowedOrigins.some((allowed) => origin.includes("namia.online") || origin.includes("irandra.my.id")) ||
       origin.includes("localhost") ||
       origin.includes("127.0.0.1")
     ) {
       callback(null, true);
     } else {
-      callback(new Error("Not allowed by CORS - Only namia.online domain is allowed"));
+      callback(new Error("Not allowed by CORS - Only namia.online and irandra.my.id domains are allowed"));
     }
   },
   credentials: true,
@@ -251,7 +255,23 @@ app.get("/qr", (req, res) => {
   });
 });
 
-// Get QR Code as HTML page (NO /api prefix)
+// Raw QR Code image endpoint
+app.get("/qr/image", async (req, res) => {
+  if (!qrCodeData) {
+    return res.status(404).send("QR Code not generated yet");
+  }
+
+  try {
+    const QRCode = require("qrcode");
+    const buffer = await QRCode.toBuffer(qrCodeData);
+    res.type("image/png");
+    res.send(buffer);
+  } catch (err) {
+    res.status(500).send("Error generating QR code image");
+  }
+});
+
+// Display QR code in a simple HTML page
 app.get("/qr/display", (req, res) => {
   if (isReady) {
     return res.send(`
